@@ -19,6 +19,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -29,7 +31,10 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+#define ADC_CHANNEL 0u // CH0 connects to ADC
+#define ADC_MAX 1023u
+#define PWM_MIN_COUNT 3200u // 5% of counter period
+#define PWM_MAX_COUNT 6400u // 10% of counter period
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -50,7 +55,7 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+static uint16_t adcRead(uint8_t channel);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -87,6 +92,8 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_SPI1_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -95,6 +102,16 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  uint16_t adc_val = adcRead(ADC_CHANNEL);
+
+	  // Map 0-1023 from ADC to 3200-6400 counts on PWM
+	  int counts = PWM_MIN_COUNT +  (adc_val * (PWM_MAX_COUNT - PWM_MIN_COUNT) / ADC_MAX);
+
+	  // Set PWM signal to control the motor
+	  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, counts);
+
+	  // Delay to not overload ADC
+	  HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -143,7 +160,30 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/**
+ * This function read ADC value from MCP3004
+ *
+ * @param channel: CH0-CH3 on MCU
+ *
+ * @return received ADC value
+ */
+static uint16_t adcRead(uint8_t channel)
+{
+	// 24 clocks each
+	uint8_t tx[3] = {0x01, (uint8_t) (0x08 | (channel << 4)), 0x00};
+	uint8_t rx[3] = {};
 
+	// Pull CS low to start SPI
+	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
+
+	// Data transfer
+	HAL_SPI_TransmitReceive(&hspi1, tx, rx, 3, HAL_MAX_DELAY);
+
+	// PULL CS high to finish SPI
+	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+
+	return (uint16_t) ((rx[1] && 0x03) << 8 | rx[1]);
+}
 /* USER CODE END 4 */
 
 /**
