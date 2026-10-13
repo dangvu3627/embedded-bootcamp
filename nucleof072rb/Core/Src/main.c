@@ -95,7 +95,8 @@ int main(void)
   MX_SPI1_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET); // CS idle high
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1); // Start Tim1
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -180,7 +181,7 @@ static uint16_t adcRead(uint8_t channel)
 	HAL_SPI_TransmitReceive(&hspi1, tx, rx, 3, HAL_MAX_DELAY);
 
 	// PULL CS high to finish SPI
-	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+
 
 	return (uint16_t) ((rx[1] && 0x03) << 8 | rx[1]);
 }
